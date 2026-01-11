@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aerial Watch - Security System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🛡️ Aerial Watch</h1>
+            <p class="subtitle">Drone-Based Intruder Detection System</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Video Feed Section -->
+            <div class="video-section">
+                <div class="video-container">
+                    <img id="videoFeed" alt="Video Feed" style="display: none;">
+                    <div class="placeholder" id="placeholder">
+                        <p>Select source and click Start to begin monitoring</p>
+                    </div>
+                </div>
+
+                <div class="status-bar">
+                    <div class="status-indicator" id="statusIndicator">
+                        <span class="dot"></span>
+                        <span id="statusText">System Ready</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Control Panel -->
+            <div class="control-panel">
+                <h2>Control Panel</h2>
+
+                <!-- Source Selection -->
+                <div class="control-group">
+                    <label>Video Source:</label>
+                    <select id="sourceSelect" {% if is_running %}disabled{% endif %}>
+                        <option value="camera">Live Camera</option>
+                        <option value="video">Video File</option>
+                    </select>
+                </div>
+
+                <!-- Video File Selection (hidden by default) -->
+                <div class="control-group" id="videoFileGroup" style="display: none;">
+                    <label>Select Video:</label>
+                    <select id="videoFileSelect">
+                        {% for video in video_files %}
+                        <option value="{{ video }}">{{ video }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Start/Stop Buttons -->
+                <div class="button-group">
+                    <button id="startBtn" class="btn btn-start" {% if is_running %}disabled{% endif %}>
+                        Start Monitoring
+                    </button>
+                    <button id="stopBtn" class="btn btn-stop" {% if not is_running %}disabled{% endif %}>
+                        Stop
+                    </button>
+                </div>
+
+                <!-- Info Panel -->
+                <div class="info-panel">
+                    <h3>System Info</h3>
+                    <p><strong>Model:</strong> YOLOv8 Nano</p>
+                    <p><strong>Cooldown:</strong> 5 seconds</p>
+                    <p><strong>Detection:</strong> Persons only</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Snapshots Gallery -->
+        <div class="gallery-section">
+            <h2>Recent Intruder Snapshots</h2>
+            <div class="gallery" id="snapshotGallery">
+                {% if snapshots %}
+                {% for snapshot in snapshots %}
+                <div class="gallery-item">
+                    <img src="{{ url_for('serve_snapshot', filename=snapshot) }}" alt="{{ snapshot }}">
+                    <p class="timestamp">{{ snapshot.replace('intruder_', '').replace('.jpg', '').replace('_', ' ') }}
+                    </p>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="no-snapshots">No snapshots yet</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const sourceSelect = document.getElementById('sourceSelect');
+        const videoFileGroup = document.getElementById('videoFileGroup');
+        const videoFileSelect = document.getElementById('videoFileSelect');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const videoFeed = document.getElementById('videoFeed');
+        const placeholder = document.getElementById('placeholder');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+
+        // Show/hide video file selection
+        sourceSelect.addEventListener('change', function () {
+            if (this.value === 'video') {
+                videoFileGroup.style.display = 'block';
+            } else {
+                videoFileGroup.style.display = 'none';
+            }
+        });
+
+        // Start monitoring
+        startBtn.addEventListener('click', async function () {
+            const source = sourceSelect.value;
+            const videoPath = source === 'video' ? videoFileSelect.value : null;
+
+            const response = await fetch('/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ source: source, video_path: videoPath })
+            });
+
+            if (response.ok) {
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                sourceSelect.disabled = true;
+                placeholder.style.display = 'none';
+
+                // Set the video feed source and show it
+                videoFeed.src = '/video_feed?t=' + new Date().getTime(); // Cache buster
+                videoFeed.style.display = 'block';
+
+                statusIndicator.classList.add('active');
+                checkStatus();
+            }
+        });
+
+        // Stop monitoring
+        stopBtn.addEventListener('click', async function () {
+            const response = await fetch('/stop', { method: 'POST' });
+
+            if (response.ok) {
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                sourceSelect.disabled = false;
+
+                // Clear and hide video feed
+                videoFeed.src = '';
+                videoFeed.style.display = 'none';
+                placeholder.style.display = 'block';
+
+                statusIndicator.classList.remove('active', 'alert');
+                statusText.textContent = 'System Ready';
+            }
+        });
+
+        // Check status periodically
+        let statusInterval;
+        let galleryInterval;
+
+        function checkStatus() {
+            statusInterval = setInterval(async () => {
+                const response = await fetch('/status');
+                const data = await response.json();
+
+                if (data.is_running) {
+                    if (data.detection_status === 'INTRUDER DETECTED') {
+                        statusIndicator.classList.add('alert');
+                        statusText.textContent = '⚠️ INTRUDER DETECTED';
+                    } else {
+                        statusIndicator.classList.remove('alert');
+                        statusText.textContent = '✓ Monitoring Active';
+                    }
+                } else {
+                    clearInterval(statusInterval);
+                    clearInterval(galleryInterval);
+                }
+            }, 1000);
+
+            // Update gallery every 3 seconds
+            galleryInterval = setInterval(updateGallery, 3000);
+        }
+
+        // Update snapshot gallery
+        async function updateGallery() {
+            const response = await fetch('/snapshots');
+            const data = await response.json();
+            const gallery = document.getElementById('snapshotGallery');
+
+            if (data.snapshots && data.snapshots.length > 0) {
+                gallery.innerHTML = data.snapshots.map(snapshot => `
+                    <div class="gallery-item">
+                        <img src="/snapshot/${snapshot}" alt="${snapshot}">
+                        <p class="timestamp">${snapshot.replace('intruder_', '').replace('.jpg', '').replace(/_/g, ' ')}</p>
+                    </div>
+                `).join('');
+            } else {
+                gallery.innerHTML = '<p class="no-snapshots">No snapshots yet</p>';
+            }
+        }
+    </script>
+</body>
+
+</html>
