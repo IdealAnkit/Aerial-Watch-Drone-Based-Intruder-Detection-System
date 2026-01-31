@@ -41,9 +41,9 @@ Thumbs.db
 *.log
 
 # Project specific
-Intruder_Logs/*.jpg
-Intruder_Logs/*.png
-!Intruder_Logs/.gitkeep
+# Intruder_Logs/*.jpg
+# Intruder_Logs/*.png
+# !Intruder_Logs/.gitkeep
 
 # Model weights (optional - uncomment if you want to exclude large model files)
 # yolov8n.pt
