@@ -871,16 +871,6 @@ Have ideas for improvement? Contributions are welcome!
 
 <div align="center">
 
-### 📜 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-</div>
-
----
-
-<div align="center">
-
 ![Made with Love](https://img.shields.io/badge/Made%20with-❤️-red?style=for-the-badge)
 ![Python](https://img.shields.io/badge/Built%20with-Python-blue?style=for-the-badge&logo=python)
 ![Open Source](https://img.shields.io/badge/Open%20Source-💻-green?style=for-the-badge)
